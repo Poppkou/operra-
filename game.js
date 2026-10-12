@@ -4,7 +4,7 @@
 const PROGRESS_KEY = 'brigade_progress_v2';
 
 function loadProgress() {
-  try { 
+  try {
     const raw = localStorage.getItem(PROGRESS_KEY);
     const data = raw ? JSON.parse(raw) : {};
     console.log('[PROGRESS] Loaded:', data);
@@ -50,10 +50,12 @@ function applySettings(s) {
   document.documentElement.style.setProperty('--fire-size', s.fireSize + 'px');
   const sm = document.getElementById('slider-move');
   const sf = document.getElementById('slider-fire');
+  const vm = document.getElementById('val-move');
+  const vf = document.getElementById('val-fire');
   if (sm) sm.value = s.moveSize;
   if (sf) sf.value = s.fireSize;
-  document.getElementById('val-move').textContent = s.moveSize;
-  document.getElementById('val-fire').textContent = s.fireSize;
+  if (vm) vm.textContent = s.moveSize;
+  if (vf) vf.textContent = s.fireSize;
 }
 
 // ============================================================
@@ -66,20 +68,20 @@ function drawTutorialHintsPanel() {
   ctx.strokeStyle = '#c8a850';
   ctx.lineWidth = 2;
   ctx.strokeRect(x, y, w, h);
-  
+
   // Заголовок
   ctx.fillStyle = '#c8a850';
   ctx.font = 'bold 11px Arial';
   ctx.textAlign = 'left';
   ctx.fillText('🗺 ПОДСКАЗКИ', x + 8, y + 16);
-  
+
   // Разделитель
   ctx.strokeStyle = 'rgba(200,168,80,0.3)';
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(x + 6, y + 22); ctx.lineTo(x + w - 6, y + 22);
   ctx.stroke();
-  
+
   // Строки
   const hints = [
     { color: '#3a5a9a', text: 'Вы (синий)' },
@@ -100,7 +102,7 @@ function drawTutorialHintsPanel() {
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1;
     ctx.stroke();
-    
+
     ctx.fillStyle = '#d0d0d5';
     ctx.font = '10px Arial';
     ctx.fillText(hint.text, x + 26, yy);
@@ -115,7 +117,7 @@ function drawMinimap() {
     drawTutorialHintsPanel();
     return;
   }
-  
+
   // Обычная миникарта
   const mmSize = 136, mmX = 10, mmY = 20;
   ctx.fillStyle = 'rgba(10, 12, 16, 0.9)';
@@ -164,7 +166,7 @@ function throwGrenade() {
   grenades.push({
     x: player.x + Math.cos(player.angle) * (player.radius + 6),
     y: player.y + Math.sin(player.angle) * (player.radius + 6),
-    vx: Math.cos(player.angle) * 720,  // было 400
+    vx: Math.cos(player.angle) * 720,
     vy: Math.sin(player.angle) * 720,
     fuse: 2200,
     spawnTime: gameTime,
@@ -174,13 +176,12 @@ function throwGrenade() {
   if (tutorialMode && TUTORIAL_STEPS[tutorialStep] && TUTORIAL_STEPS[tutorialStep].id === 'grenade') tutorialState.threwGrenade = true;
 }
 
-// Заменить старую updateGrenades()
 function updateGrenades(dt) {
   for (let i = grenades.length - 1; i >= 0; i--) {
     const g = grenades[i];
     const nx = g.x + g.vx * dt;
     const ny = g.y + g.vy * dt;
-    
+
     // Отскок от стен по X
     if (pointInWalls(nx, g.y)) {
       g.vx = -g.vx * 0.65;
@@ -197,15 +198,15 @@ function updateGrenades(dt) {
     } else {
       g.y = ny;
     }
-    
-    // Меньше трение — граната летит дальше (0.5^dt вместо 0.0015^dt)
+
+    // Меньше трение — граната летит дальше
     const damp = Math.pow(0.5, dt);
     g.vx *= damp;
     g.vy *= damp;
-    
+
     // Стоп если очень медленно
     if (Math.hypot(g.vx, g.vy) < 30) { g.vx *= 0.9; g.vy *= 0.9; }
-    
+
     if (gameTime - g.spawnTime > g.fuse) {
       explode(g.x, g.y, 200);
       grenades.splice(i, 1);
@@ -216,11 +217,10 @@ function updateGrenades(dt) {
 // ============================================================
 //  ПУЛИ — лёгкое самонаведение для игрока
 // ============================================================
-// Заменить updateBullets() целиком
 function updateBullets(dt) {
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
-    
+
     // === Самонаведение для пуль игрока ===
     if (b.owner === 'player') {
       const bulletAng = Math.atan2(b.vy, b.vx);
@@ -242,7 +242,7 @@ function updateBullets(dt) {
         b.vy = Math.sin(newAng) * speed;
       }
     }
-    
+
     const stepDist = Math.hypot(b.vx, b.vy) * dt;
     const steps = Math.max(1, Math.ceil(stepDist / 18));
     const subDt = dt / steps;
@@ -325,7 +325,7 @@ function gameOver(success, reason, customTitle) {
   // Сохраняем id ДО изменения состояния
   const savedMissionId = currentMission ? currentMission.id : null;
   const savedMissionType = currentMission ? currentMission.type : null;
-  
+
   gameOverFlag = true; timeScale = 1; player.firing = false;
   airMode = false; scheduledEvent = null; pendingAirstrike = null;
   tutorialMode = false;
@@ -333,12 +333,12 @@ function gameOver(success, reason, customTitle) {
   document.getElementById('air-hud').classList.remove('active');
   fireJoy.charged = false; fireJoy.active = false;
   document.getElementById('fire-joystick').classList.remove('charging', 'charged');
-  
+
   // СОХРАНЯЕМ ПРОГРЕСС — с явной проверкой
   if (success && savedMissionId && savedMissionType !== 'tutorial' && savedMissionType !== 'wave' && !waveMode) {
     saveProgress(savedMissionId);
   }
-  
+
   const elapsed = getElapsedSeconds();
   const mm = Math.floor(elapsed / 60);
   const ss = Math.floor(elapsed % 60);
@@ -373,7 +373,7 @@ function gameOver(success, reason, customTitle) {
 }
 
 // ============================================================
-//  НОВОЕ МЕНЮ — рендер без вкладок
+//  НОВОЕ МЕНЮ — рендер без вкладок (ФИКС КНОПОК)
 // ============================================================
 const MISSION_GROUPS = [
   { type:'eliminate', icon:'🎯', title:'ЗАЧИСТКА' },
@@ -384,19 +384,19 @@ const MISSION_GROUPS = [
 
 function initMissionSelect() {
   const container = document.getElementById('missions-container');
+  if (!container) { console.error('[MENU] missions-container not found'); return; }
   container.innerHTML = '';
-  MISSIONS.forEach(m => { if (!m._setup) m._setup = true; }); // placeholder
-  
+
   MISSION_GROUPS.forEach(g => {
     const groupMissions = MISSIONS.filter(m => m.type === g.type);
     const wrap = document.createElement('div');
     wrap.className = 'mission-group';
-    
+
     const header = document.createElement('div');
     header.className = 'group-header';
     header.innerHTML = `<span>${g.icon} ${g.title}</span><span class="gh-count" data-count="${g.type}">0/${groupMissions.length}</span>`;
     wrap.appendChild(header);
-    
+
     const cardsWrap = document.createElement('div');
     cardsWrap.className = 'group-cards';
     groupMissions.forEach(m => {
@@ -414,6 +414,7 @@ function initMissionSelect() {
     wrap.appendChild(cardsWrap);
     container.appendChild(wrap);
   });
+
   refreshMenuProgress();
 }
 
@@ -422,26 +423,23 @@ function refreshMenuProgress() {
   const done = countCompleted();
   const progressEl = document.getElementById('menu-progress');
   if (progressEl) progressEl.textContent = `ПРОЙДЕНО: ${done} / ${total}`;
-  
-  // Обновить галочки и счётчики в группах
+
   MISSIONS.forEach(m => {
     const card = document.querySelector(`.mc-compact[data-mission="${m.id}"]`);
     if (!card) return;
-    const done = hasCompleted(m.id);
-    card.classList.toggle('completed', done);
-    // Галочка
+    const isDone = hasCompleted(m.id);
+    card.classList.toggle('completed', isDone);
     let check = card.querySelector('.mc-check');
-    if (done && !check) {
+    if (isDone && !check) {
       check = document.createElement('span');
       check.className = 'mc-check';
       check.textContent = '✓';
       card.appendChild(check);
-    } else if (!done && check) {
+    } else if (!isDone && check) {
       check.remove();
     }
   });
-  
-  // Обновить счётчики по группам
+
   MISSION_GROUPS.forEach(g => {
     const groupMissions = MISSIONS.filter(m => m.type === g.type);
     const doneInGroup = groupMissions.filter(m => hasCompleted(m.id)).length;
@@ -454,11 +452,12 @@ function refreshMenuProgress() {
 //  PAUSE MENU — настройки с слайдерами
 // ============================================================
 function toggleSettingsPanel(open) {
-  document.getElementById('pause-main').style.display = open ? 'none' : 'flex';
-  document.getElementById('pause-settings').style.display = open ? 'flex' : 'none';
+  const pm = document.getElementById('pause-main');
+  const ps = document.getElementById('pause-settings');
+  if (pm) pm.style.display = open ? 'none' : 'flex';
+  if (ps) ps.style.display = open ? 'flex' : 'none';
 }
 
-// Обновить togglePause — добавить закрытие настроек
 function togglePause() {
   if (gameOverFlag || currentMission === null || airMode) return;
   paused = !paused;
@@ -475,50 +474,48 @@ function togglePause() {
   }
 }
 
-// Слайдеры настроек
-document.getElementById('slider-move').addEventListener('input', e => {
-  const v = parseInt(e.target.value);
-  document.getElementById('val-move').textContent = v;
-  const s = loadSettings();
-  s.moveSize = v;
-  saveSettings(s);
-  document.documentElement.style.setProperty('--move-size', v + 'px');
-});
-document.getElementById('slider-fire').addEventListener('input', e => {
-  const v = parseInt(e.target.value);
-  document.getElementById('val-fire').textContent = v;
-  const s = loadSettings();
-  s.fireSize = v;
-  saveSettings(s);
-  document.documentElement.style.setProperty('--fire-size', v + 'px');
-});
-document.getElementById('btn-settings').addEventListener('click', () => toggleSettingsPanel(true));
-document.getElementById('btn-settings-back').addEventListener('click', () => toggleSettingsPanel(false));
+// ============================================================
+//  ОБРАБОТЧИКИ UI — все с ?. чтобы ничего не падало
+// ============================================================
 
 // Кнопки главного меню
-document.getElementById('menu-btn-tutorial').addEventListener('click', () => startTutorialMode());
-document.getElementById('menu-btn-coop').addEventListener('click', () => openMpLobby());
-document.getElementById('menu-btn-fullscreen').addEventListener('click', () => toggleFullscreen());
-document.getElementById('btn-reset-progress').addEventListener('click', () => {
+document.getElementById('menu-btn-tutorial')?.addEventListener('click', () => startTutorialMode());
+document.getElementById('menu-btn-coop')?.addEventListener('click', () => openMpLobby());
+document.getElementById('menu-btn-fullscreen')?.addEventListener('click', () => toggleFullscreen());
+document.getElementById('btn-reset-progress')?.addEventListener('click', () => {
   if (confirm('Сбросить весь прогресс прохождения?')) {
     resetProgress();
     refreshMenuProgress();
   }
 });
-document.getElementById('legend-close').addEventListener('click', () => closeLegend());
-document.getElementById('btn-end-menu').addEventListener('click', () => toMenu());
+document.getElementById('legend-close')?.addEventListener('click', () => closeLegend());
+document.getElementById('btn-end-menu')?.addEventListener('click', () => toMenu());
+
+// Настройки в паузе
+document.getElementById('slider-move')?.addEventListener('input', e => {
+  const v = parseInt(e.target.value);
+  const valEl = document.getElementById('val-move');
+  if (valEl) valEl.textContent = v;
+  const s = loadSettings();
+  s.moveSize = v;
+  saveSettings(s);
+  document.documentElement.style.setProperty('--move-size', v + 'px');
+});
+document.getElementById('slider-fire')?.addEventListener('input', e => {
+  const v = parseInt(e.target.value);
+  const valEl = document.getElementById('val-fire');
+  if (valEl) valEl.textContent = v;
+  const s = loadSettings();
+  s.fireSize = v;
+  saveSettings(s);
+  document.documentElement.style.setProperty('--fire-size', v + 'px');
+});
+document.getElementById('btn-settings')?.addEventListener('click', () => toggleSettingsPanel(true));
+document.getElementById('btn-settings-back')?.addEventListener('click', () => toggleSettingsPanel(false));
 
 // ============================================================
-//  INIT — применить настройки при старте
+//  TO MENU — обновляем прогресс при возврате
 // ============================================================
-(function initAll() {
-  applySettings(loadSettings());
-  initMissionSelect();
-  animate();
-})();
-
-// Обновлять прогресс при возврате в меню
-// Заменить старую toMenu()
 function toMenu() {
   currentMission = null; paused = false; gameOverFlag = false; timeScale = 1; commandMenuOpen = false;
   waveMode = false; airMode = false; airBombs = []; scheduledEvent = null; pendingAirstrike = null;
@@ -535,3 +532,13 @@ function toMenu() {
   clearWorld();
   refreshMenuProgress(); // обновить галочки
 }
+
+// ============================================================
+//  INIT
+// ============================================================
+(function init() {
+  applySettings(loadSettings());
+  initMissionSelect();
+  animate();
+  console.log('[INIT] БРИГАДА — Тактический HUD v2 готова к бою');
+})();
