@@ -475,43 +475,74 @@ function togglePause() {
 }
 
 // ============================================================
-//  ОБРАБОТЧИКИ UI — все с ?. чтобы ничего не падало
+//  ОБРАБОТЧИКИ UI — ФИКС КНОПОК (делегирование, не зависит от DOM-ready)
 // ============================================================
+const UI_CLICK_ACTIONS = {
+  'menu-btn-tutorial':   () => startTutorialMode(),
+  'menu-btn-coop':       () => openMpLobby(),
+  'menu-btn-fullscreen': () => toggleFullscreen(),
+  'btn-reset-progress':  () => {
+    if (confirm('Сбросить весь прогресс прохождения?')) {
+      resetProgress();
+      refreshMenuProgress();
+    }
+  },
+  'legend-close':        () => closeLegend(),
+  'btn-end-menu':        () => toMenu(),
+  'btn-settings':        () => toggleSettingsPanel(true),
+  'btn-settings-back':   () => toggleSettingsPanel(false),
+};
 
-// Кнопки главного меню
-document.getElementById('menu-btn-tutorial')?.addEventListener('click', () => startTutorialMode());
-document.getElementById('menu-btn-coop')?.addEventListener('click', () => openMpLobby());
-document.getElementById('menu-btn-fullscreen')?.addEventListener('click', () => toggleFullscreen());
-document.getElementById('btn-reset-progress')?.addEventListener('click', () => {
-  if (confirm('Сбросить весь прогресс прохождения?')) {
-    resetProgress();
-    refreshMenuProgress();
-  }
-});
-document.getElementById('legend-close')?.addEventListener('click', () => closeLegend());
-document.getElementById('btn-end-menu')?.addEventListener('click', () => toMenu());
+let uiBound = false;
+function bindUI() {
+  if (uiBound) return;
+  uiBound = true;
 
-// Настройки в паузе
-document.getElementById('slider-move')?.addEventListener('input', e => {
-  const v = parseInt(e.target.value);
-  const valEl = document.getElementById('val-move');
-  if (valEl) valEl.textContent = v;
-  const s = loadSettings();
-  s.moveSize = v;
-  saveSettings(s);
-  document.documentElement.style.setProperty('--move-size', v + 'px');
-});
-document.getElementById('slider-fire')?.addEventListener('input', e => {
-  const v = parseInt(e.target.value);
-  const valEl = document.getElementById('val-fire');
-  if (valEl) valEl.textContent = v;
-  const s = loadSettings();
-  s.fireSize = v;
-  saveSettings(s);
-  document.documentElement.style.setProperty('--fire-size', v + 'px');
-});
-document.getElementById('btn-settings')?.addEventListener('click', () => toggleSettingsPanel(true));
-document.getElementById('btn-settings-back')?.addEventListener('click', () => toggleSettingsPanel(false));
+  // Один делегированный обработчик на все кнопки (фаза capture).
+  // Ищет ближайшего родителя с нужным id — работает даже если
+  // кнопки пересозданы или скрипт выполнился раньше DOM.
+  document.addEventListener('click', (e) => {
+    let el = e.target;
+    while (el && el.nodeType === 1) {
+      const action = UI_CLICK_ACTIONS[el.id];
+      if (action) {
+        e.preventDefault();
+        e.stopPropagation();
+        try { action(); }
+        catch (err) { console.error('[UI] Ошибка кнопки #' + el.id, err); }
+        return;
+      }
+      el = el.parentElement;
+    }
+  }, true);
+
+  // Слайдеры настроек (событие input, делегированием нельзя)
+  const bindSlider = (id, valId, key, cssVar) => {
+    const el = document.getElementById(id);
+    if (!el) { console.warn('[UI] Слайдер не найден: #' + id); return; }
+    el.addEventListener('input', () => {
+      const v = parseInt(el.value, 10) || 120;
+      const valEl = document.getElementById(valId);
+      if (valEl) valEl.textContent = v;
+      const s = loadSettings();
+      s[key] = v;
+      saveSettings(s);
+      document.documentElement.style.setProperty(cssVar, v + 'px');
+    });
+  };
+  bindSlider('slider-move', 'val-move', 'moveSize', '--move-size');
+  bindSlider('slider-fire', 'val-fire', 'fireSize', '--fire-size');
+}
+
+// Диагностика: в консоли вызвать diagUI() — покажет, какие id реально есть в HTML
+window.diagUI = function () {
+  Object.keys(UI_CLICK_ACTIONS).concat([
+    'missions-container', 'menu-progress', 'start-screen',
+    'slider-move', 'slider-fire', 'pause-menu', 'end-screen',
+  ]).forEach(id => {
+    console.log((document.getElementById(id) ? '✅ #' : '❌ НЕТ В HTML #' ) + id);
+  });
+};
 
 // ============================================================
 //  TO MENU — обновляем прогресс при возврате
@@ -534,96 +565,18 @@ function toMenu() {
 }
 
 // ============================================================
-//  INIT
-// ============================================================
-// ============================================================
-//  GLOBAL ERROR LOGGER — чтобы видеть ЧТО падает
-// ============================================================
-window.addEventListener('error', (e) => {
-  console.error('[GLOBAL ERROR]', e.message, '@', e.filename, e.lineno + ':' + e.colno, e.error);
-});
-window.addEventListener('unhandledrejection', (e) => {
-  console.error('[UNHANDLED PROMISE]', e.reason);
-});
-
-// ============================================================
-//  BIND UI — навешиваем обработчики максимально безопасно
-// ============================================================
-function bindUI() {
-  const $ = (id) => document.getElementById(id);
-  const on = (id, ev, fn) => {
-    const el = $(id);
-    if (!el) { console.warn('[BIND] element not found:', id); return; }
-    el.addEventListener(ev, (e) => {
-      try { fn(e); }
-      catch (err) { console.error('[HANDLER ERROR]', id, ev, err); }
-    });
-    console.log('[BIND] ok:', id);
-  };
-
-  // Главное меню
-  on('menu-btn-tutorial',   'click', () => startTutorialMode());
-  on('menu-btn-coop',       'click', () => openMpLobby());
-  on('menu-btn-fullscreen', 'click', () => toggleFullscreen());
-  on('btn-reset-progress',  'click', () => {
-    if (confirm('Сбросить весь прогресс прохождения?')) {
-      resetProgress();
-      refreshMenuProgress();
-    }
-  });
-  on('legend-close',   'click', () => closeLegend());
-  on('btn-end-menu',   'click', () => toMenu());
-
-  // Настройки (пауза)
-  on('slider-move', 'input', (e) => {
-    const v = parseInt(e.target.value, 10);
-    const el = $('val-move'); if (el) el.textContent = v;
-    const s = loadSettings(); s.moveSize = v; saveSettings(s);
-    document.documentElement.style.setProperty('--move-size', v + 'px');
-  });
-  on('slider-fire', 'input', (e) => {
-    const v = parseInt(e.target.value, 10);
-    const el = $('val-fire'); if (el) el.textContent = v;
-    const s = loadSettings(); s.fireSize = v; saveSettings(s);
-    document.documentElement.style.setProperty('--fire-size', v + 'px');
-  });
-  on('btn-settings',      'click', () => toggleSettingsPanel(true));
-  on('btn-settings-back', 'click', () => toggleSettingsPanel(false));
-}
-
-// ============================================================
-//  INIT — каждый шаг в своём try/catch, чтобы один краш не убил всё
+//  INIT — строго после готовности DOM
 // ============================================================
 function initGame() {
-  console.log('[INIT] start');
-
-  // Проверки окружения
-  console.log('[INIT] typeof animate =', typeof animate);
-  console.log('[INIT] typeof startMission =', typeof startMission);
-  console.log('[INIT] typeof startTutorialMode =', typeof startTutorialMode);
-  console.log('[INIT] typeof MISSIONS =', typeof MISSIONS, Array.isArray(MISSIONS) ? 'len=' + MISSIONS.length : '');
-  console.log('[INIT] missions-container =', document.getElementById('missions-container'));
-
-  try { applySettings(loadSettings()); }
-  catch (e) { console.error('[INIT] applySettings crashed:', e); }
-
-  try { initMissionSelect(); }
-  catch (e) { console.error('[INIT] initMissionSelect crashed:', e); }
-
-  try { bindUI(); }
-  catch (e) { console.error('[INIT] bindUI crashed:', e); }
-
-  try {
-    if (typeof animate === 'function') animate();
-    else console.error('[INIT] animate is NOT a function — игровой цикл не запустится');
-  } catch (e) { console.error('[INIT] animate crashed:', e); }
-
-  console.log('[INIT] done');
+  bindUI();
+  applySettings(loadSettings());
+  initMissionSelect();
+  animate();
+  console.log('[INIT] БРИГАДА — Тактический HUD v2 готова к бою');
 }
 
-// Ждём DOM — на случай если <script> в <head> без defer
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initGame);
 } else {
   initGame();
-  }
+}
