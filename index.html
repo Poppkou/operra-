@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="screen-orientation" content="landscape">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="БРИГАДА">
+<meta name="format-detection" content="telephone=no">
+<meta name="mobile-web-app-capable" content="yes">
+<title>БРИГАДА БЫСТРОГО РЕАГИРОВАНИЯ — 2D</title>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="rotate-hint"><div class="icon">📱</div><div>Поверните устройство горизонтально</div></div>
+
+<div id="intro">
+  <div class="intro-sub">— MADE BY —</div>
+  <div class="intro-main">NIKkD &amp; Deepseek &amp; Qwenchk</div>
+  <div class="intro-line"></div>
+</div>
+
+<div id="event-banner">
+  <div class="event-icon" id="event-icon">⚠</div>
+  <div class="event-title" id="event-title">СОБЫТИЕ</div>
+  <div class="event-desc" id="event-desc">Описание</div>
+  <button id="want-plane-btn">✈ ХОЧУ САМ ✈</button>
+</div>
+
+<div id="easter-hint">Удерживай БР</div>
+
+<div id="tutorial-hint"><span class="step" id="tutorial-step-num"></span><span id="tutorial-text"></span></div>
+<button id="tutorial-skip">ПРОПУСТИТЬ ▶</button>
+
+<div id="tutorial-legend">
+  <div class="legend-box">
+    <div class="legend-title">🗺 ОБОЗНАЧЕНИЯ</div>
+    <div class="legend-subtitle">Что означает каждый цвет и символ</div>
+    <div class="legend-grid">
+      <div class="legend-item"><div class="legend-icon" style="background:#3a5a9a;"></div><div class="legend-label">Вы (командир)<small>Синий с указателем направления</small></div></div>
+      <div class="legend-item"><div class="legend-icon" style="background:#4a7a4a;"></div><div class="legend-label">Союзники<small>Зелёные — 3 бойца отряда</small></div></div>
+      <div class="legend-item"><div class="legend-icon" style="background:#a04040;"></div><div class="legend-label">Враги<small>Красные — цвет зависит от типа</small></div></div>
+      <div class="legend-item"><div class="legend-icon sq" style="background:#5a5a5e;"></div><div class="legend-label">Стены<small>Серые — неразрушимые</small></div></div>
+      <div class="legend-item"><div class="legend-icon sq" style="background:#7a6a5a;"></div><div class="legend-label">Разрушаемые стены<small>Коричневые — ломаются гранатой</small></div></div>
+      <div class="legend-item"><div class="legend-icon" style="background:#c87000;"></div><div class="legend-label">Огонь<small>Оранжевые — наносит урон</small></div></div>
+      <div class="legend-item"><div class="legend-icon sq" style="background:#8ab88a;"></div><div class="legend-label">Аптечка<small>+30 HP вам и союзникам</small></div></div>
+      <div class="legend-item"><div class="legend-icon sq" style="background:#c05050;"></div><div class="legend-label">Бомба<small>Цель миссии «Обезвредить»</small></div></div>
+      <div class="legend-item"><div class="legend-icon sq" style="background:#c8a850;"></div><div class="legend-label">Заложник<small>Цель миссии «Спасти»</small></div></div>
+      <div class="legend-item"><div class="legend-icon" style="background:#b06040;"></div><div class="legend-label">Второй игрок<small>В кооп-режиме</small></div></div>
+    </div>
+    <button class="legend-close" id="legend-close">ПОНЯТНО</button>
+  </div>
+</div>
+
+<div id="code-modal">
+  <div class="code-box">
+    <div class="code-title">★ СЕКРЕТНЫЙ КОД ★</div>
+    <div class="code-desc">Введи 5-значный код события:<br>AIR01 · MRT02 · FDR03 · BLK04<br>GAS05 · FOG06 · SNP07 · SUP08</div>
+    <input id="code-input" maxlength="5" autocomplete="off" spellcheck="false">
+    <div id="code-error"></div>
+    <div class="code-buttons">
+      <button class="code-btn cancel" id="code-cancel">ОТМЕНА</button>
+      <button class="code-btn submit" id="code-submit">АКТИВИРОВАТЬ</button>
+    </div>
+  </div>
+</div>
+
+<div id="mp-lobby">
+  <div class="mp-box">
+    <div class="mp-title">👥 КООП НА 2 ИГРОКА</div>
+    <div class="mp-status" id="mp-status">Создай игру или присоединись</div>
+    <div class="mp-row">
+      <button class="mp-btn primary" id="mp-host-btn">👑 СОЗДАТЬ ИГРУ</button>
+      <button class="mp-btn" id="mp-join-btn">🔗 ПРИСОЕДИНИТЬСЯ</button>
+    </div>
+    <div id="mp-code-display" style="display:none">----</div>
+    <div class="mp-row" id="mp-join-input" style="display:none">
+      <input id="mp-code-input" placeholder="КОД" maxlength="8" autocomplete="off">
+      <button class="mp-btn primary" id="mp-connect-btn" style="flex:0 0 100px;">ВОЙТИ</button>
+    </div>
+    <button class="mp-btn" id="mp-back-btn">◀ НАЗАД</button>
+  </div>
+</div>
+
+<canvas id="game-canvas"></canvas>
+<div id="hit-marker"></div>
+<div id="damage-overlay"></div>
+<div id="reload-indicator">ПЕРЕЗАРЯДКА...</div>
+
+<div id="air-hud">
+  <div id="air-timer">✈ 7.0</div>
+  <div id="air-info">БОМБ: <span class="v" id="air-bombs-count">5</span></div>
+  <div id="air-move-joy"><div class="knob"></div></div>
+  <button id="air-drop-btn">СБРОС<br>💣</button>
+</div>
+
+<div id="topbar">
+  <div class="tb-side"></div>
+  <div class="tb-center">
+    <div id="mission">МИССИЯ</div>
+    <div id="objective">Цель</div>
+  </div>
+  <div class="tb-side"></div>
+</div>
+
+<div class="tb-right">
+  <button id="btn-pause">⏸</button>
+  <div id="enemy-panel">
+    <div class="lbl">ВРАГИ</div>
+    <div class="num" id="enemies-left">0</div>
+  </div>
+</div>
+
+<div id="hp-panel">
+  <div class="lbl">HP</div>
+  <div class="num" id="hp-value">100</div>
+  <div class="hp-bar"><div id="hp-bar" style="width:100%"></div></div>
+</div>
+
+<div id="p2-panel">
+  <div class="lbl">ИГРОК 2</div>
+  <div class="num" id="p2-hp">100</div>
+  <div class="hp-bar"><div id="p2-hp-bar" style="width:100%"></div></div>
+</div>
+
+<div id="mp-badge">КООП: <b id="mp-badge-code">----</b></div>
+
+<div id="pc-hints">
+  <div><b>WASD</b> движение · <b>Мышь</b> прицел · <b>ЛКМ</b> огонь</div>
+  <div><b>R</b> перезарядка · <b>G</b> граната · <b>Q</b>/<b>1-3</b> оружие</div>
+  <div><b>E</b> приказы · <b>Esc</b> пауза · <b>F</b> полный экран</div>
+</div>
+
+<div id="log"></div>
+
+<div id="weapon-bar">
+  <div class="wslot active" data-idx="0">
+    <svg viewBox="0 0 64 20"><rect class="w-body" x="10" y="8" width="34" height="4"/><rect class="w-accent" x="40" y="9" width="22" height="2"/><rect class="w-dark" x="16" y="12" width="6" height="6"/><rect class="w-dark" x="6" y="9" width="6" height="3"/></svg>
+    <div class="w-name">АК-74</div><div class="w-ammo" id="w-ammo-0">30/120</div>
+  </div>
+  <div class="wslot" data-idx="1">
+    <svg viewBox="0 0 64 20"><rect class="w-body" x="14" y="8" width="28" height="5"/><rect class="w-accent" x="42" y="9" width="18" height="3"/><rect class="w-dark" x="20" y="13" width="10" height="5"/></svg>
+    <div class="w-name">ДРОБ</div><div class="w-ammo" id="w-ammo-1">6/24</div>
+  </div>
+  <div class="wslot" data-idx="2">
+    <svg viewBox="0 0 64 20"><rect class="w-body" x="10" y="9" width="42" height="3"/><rect class="w-accent" x="52" y="9.5" width="10" height="2"/><rect class="w-dark" x="14" y="12" width="7" height="5"/><rect class="w-dark" x="22" y="5" width="8" height="3"/><circle class="w-accent" cx="26" cy="7" r="2"/></svg>
+    <div class="w-name">СВД</div><div class="w-ammo" id="w-ammo-2">5/20</div>
+  </div>
+</div>
+
+<div id="joystick-move"><div class="joystick-knob"></div></div>
+<div id="fire-joystick"><div class="fire-knob">🔥</div></div>
+
+<button class="act-btn" id="btn-weapon">🔫</button>
+<button class="act-btn" id="btn-reload">R</button>
+<button class="act-btn" id="btn-grenade">💣</button>
+<button class="act-btn" id="btn-commands">⚔</button>
+
+<div id="command-menu">
+  <div class="cmd-title">⚔ ПРИКАЗЫ ОТРЯДУ ⚔</div>
+  <div class="cmd-grid">
+    <button class="cmd-btn" data-cmd="follow"><span class="key">1</span>Следовать<span class="desc">Держаться рядом</span></button>
+    <button class="cmd-btn" data-cmd="hold"><span class="key">2</span>Удерживать<span class="desc">Стоять на месте</span></button>
+    <button class="cmd-btn" data-cmd="attack"><span class="key">3</span>Атаковать<span class="desc">Огонь по цели</span></button>
+    <button class="cmd-btn" data-cmd="cover"><span class="key">4</span>Прикрытие<span class="desc">Огонь по сектору</span></button>
+    <button class="cmd-btn" data-cmd="breach"><span class="key">5</span>Вломиться<span class="desc">Быстрый рывок</span></button>
+    <button class="cmd-btn" data-cmd="defuse"><span class="key">6</span>Обезвредить<span class="desc">Бомба рядом</span></button>
+    <button class="cmd-btn" data-cmd="rescue"><span class="key">7</span>Спасти<span class="desc">Заложник рядом</span></button>
+    <button class="cmd-btn" data-cmd="regroup"><span class="key">8</span>Перегруппировка<span class="desc">Собраться</span></button>
+  </div>
+  <button class="cmd-close" id="cmd-close">ЗАКРЫТЬ</button>
+</div>
+
+<div id="pause-menu">
+  <div class="pause-box" id="pause-main">
+    <div class="pause-h">Пауза</div>
+    <div class="pause-divider"></div>
+    <div class="pause-info" id="pause-info">Загрузка...</div>
+    <button class="p-btn" id="btn-resume"><span class="p-icon">▶</span><span>Продолжить бой</span></button>
+    <button class="p-btn" id="btn-settings"><span class="p-icon">⚙</span><span>Настройки</span></button>
+    <button class="p-btn" id="btn-restart"><span class="p-icon">↻</span><span>Перезапустить миссию</span></button>
+    <button class="p-btn danger" id="btn-to-menu"><span class="p-icon">⌂</span><span>В главное меню</span></button>
+  </div>
+  <div class="pause-box" id="pause-settings" style="display:none">
+    <div class="pause-h">Настройки</div>
+    <div class="pause-divider"></div>
+    <div class="settings-row">
+      <label>Джойстик движения</label>
+      <input type="range" id="slider-move" min="70" max="180" value="120" step="5">
+      <span class="settings-val" id="val-move">120</span>
+    </div>
+    <div class="settings-row">
+      <label>Джойстик огня</label>
+      <input type="range" id="slider-fire" min="70" max="180" value="120" step="5">
+      <span class="settings-val" id="val-fire">120</span>
+    </div>
+    <div class="settings-hint">Изменения применяются сразу</div>
+    <button class="p-btn" id="btn-settings-back"><span class="p-icon">◀</span><span>Назад в паузу</span></button>
+  </div>
+</div>
+
+<div id="start-screen">
+  <div class="menu-header">
+    <h1><span id="easter-br">БР</span>ИГАДА<span id="easter-progress"></span></h1>
+    <div class="menu-subtitle">ТАКТИЧЕСКИЙ ШТУРМОВОЙ СИМУЛЯТОР</div>
+    <div class="menu-progress" id="menu-progress">ПРОЙДЕНО: 0 / 20</div>
+  </div>
+
+  <div class="menu-actions">
+    <button class="menu-action-btn tutorial" id="menu-btn-tutorial">
+      <span class="ma-icon">🎓</span>
+      <span class="ma-title">ОБУЧЕНИЕ</span>
+      <span class="ma-sub">Все механики игры</span>
+    </button>
+    <button class="menu-action-btn coop" id="menu-btn-coop">
+      <span class="ma-icon">👥</span>
+      <span class="ma-title">КООП</span>
+      <span class="ma-sub">Игра на двоих</span>
+    </button>
+    <button class="menu-action-btn fullscreen" id="menu-btn-fullscreen">
+      <span class="ma-icon">⛶</span>
+      <span class="ma-title">ПОЛНЫЙ ЭКРАН</span>
+      <span class="ma-sub">Развернуть</span>
+    </button>
+  </div>
+
+  <div id="missions-container"></div>
+
+  <div class="menu-footer">
+    <button class="menu-footer-btn" id="btn-reset-progress">🔄 Сбросить прогресс</button>
+  </div>
+</div>
+
+<div id="end-screen" style="display:none;">
+  <h1 id="end-title">МИССИЯ ВЫПОЛНЕНА</h1>
+  <div id="end-sub"></div>
+  <div id="end-stats"></div>
+  <button class="btn" id="btn-end-menu">В МЕНЮ</button>
+</div>
+
+<script src="game.js"></script>
+</body>
+  </html>
