@@ -536,9 +536,94 @@ function toMenu() {
 // ============================================================
 //  INIT
 // ============================================================
-(function init() {
-  applySettings(loadSettings());
-  initMissionSelect();
-  animate();
-  console.log('[INIT] БРИГАДА — Тактический HUD v2 готова к бою');
-})();
+// ============================================================
+//  GLOBAL ERROR LOGGER — чтобы видеть ЧТО падает
+// ============================================================
+window.addEventListener('error', (e) => {
+  console.error('[GLOBAL ERROR]', e.message, '@', e.filename, e.lineno + ':' + e.colno, e.error);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('[UNHANDLED PROMISE]', e.reason);
+});
+
+// ============================================================
+//  BIND UI — навешиваем обработчики максимально безопасно
+// ============================================================
+function bindUI() {
+  const $ = (id) => document.getElementById(id);
+  const on = (id, ev, fn) => {
+    const el = $(id);
+    if (!el) { console.warn('[BIND] element not found:', id); return; }
+    el.addEventListener(ev, (e) => {
+      try { fn(e); }
+      catch (err) { console.error('[HANDLER ERROR]', id, ev, err); }
+    });
+    console.log('[BIND] ok:', id);
+  };
+
+  // Главное меню
+  on('menu-btn-tutorial',   'click', () => startTutorialMode());
+  on('menu-btn-coop',       'click', () => openMpLobby());
+  on('menu-btn-fullscreen', 'click', () => toggleFullscreen());
+  on('btn-reset-progress',  'click', () => {
+    if (confirm('Сбросить весь прогресс прохождения?')) {
+      resetProgress();
+      refreshMenuProgress();
+    }
+  });
+  on('legend-close',   'click', () => closeLegend());
+  on('btn-end-menu',   'click', () => toMenu());
+
+  // Настройки (пауза)
+  on('slider-move', 'input', (e) => {
+    const v = parseInt(e.target.value, 10);
+    const el = $('val-move'); if (el) el.textContent = v;
+    const s = loadSettings(); s.moveSize = v; saveSettings(s);
+    document.documentElement.style.setProperty('--move-size', v + 'px');
+  });
+  on('slider-fire', 'input', (e) => {
+    const v = parseInt(e.target.value, 10);
+    const el = $('val-fire'); if (el) el.textContent = v;
+    const s = loadSettings(); s.fireSize = v; saveSettings(s);
+    document.documentElement.style.setProperty('--fire-size', v + 'px');
+  });
+  on('btn-settings',      'click', () => toggleSettingsPanel(true));
+  on('btn-settings-back', 'click', () => toggleSettingsPanel(false));
+}
+
+// ============================================================
+//  INIT — каждый шаг в своём try/catch, чтобы один краш не убил всё
+// ============================================================
+function initGame() {
+  console.log('[INIT] start');
+
+  // Проверки окружения
+  console.log('[INIT] typeof animate =', typeof animate);
+  console.log('[INIT] typeof startMission =', typeof startMission);
+  console.log('[INIT] typeof startTutorialMode =', typeof startTutorialMode);
+  console.log('[INIT] typeof MISSIONS =', typeof MISSIONS, Array.isArray(MISSIONS) ? 'len=' + MISSIONS.length : '');
+  console.log('[INIT] missions-container =', document.getElementById('missions-container'));
+
+  try { applySettings(loadSettings()); }
+  catch (e) { console.error('[INIT] applySettings crashed:', e); }
+
+  try { initMissionSelect(); }
+  catch (e) { console.error('[INIT] initMissionSelect crashed:', e); }
+
+  try { bindUI(); }
+  catch (e) { console.error('[INIT] bindUI crashed:', e); }
+
+  try {
+    if (typeof animate === 'function') animate();
+    else console.error('[INIT] animate is NOT a function — игровой цикл не запустится');
+  } catch (e) { console.error('[INIT] animate crashed:', e); }
+
+  console.log('[INIT] done');
+}
+
+// Ждём DOM — на случай если <script> в <head> без defer
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initGame);
+} else {
+  initGame();
+  }
