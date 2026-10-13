@@ -311,6 +311,7 @@ body.pc-mode #pc-hints { display:block; }
 .menu-action-btn.fullscreen:hover { border-color:var(--cyan); background:linear-gradient(160deg, rgba(18,40,55,0.9), rgba(10,22,30,0.9)); box-shadow:0 0 24px rgba(33,212,253,0.35); }
 
 #missions-container { flex:1; overflow-y:auto; width:100%; max-width:940px; display:flex; flex-direction:column; gap:12px; padding:6px; position:relative; z-index:1; }
+#missions-container, #missions-container * { touch-action:pan-y; -webkit-overflow-scrolling:touch; } /* иначе на телефоне список миссий не прокручивается (глобальный touch-action:none) */
 #missions-container::-webkit-scrollbar { width:6px; }
 #missions-container::-webkit-scrollbar-track { background:rgba(11,16,24,0.5); border-radius:3px; }
 #missions-container::-webkit-scrollbar-thumb { background:var(--border-hi); border-radius:3px; }
@@ -373,8 +374,9 @@ body.pc-mode #pc-hints { display:block; }
 /* ============================================================
    EASTER EGG
    ============================================================ */
-#easter-br { cursor:pointer; position:relative; display:inline-block; }
-#easter-br.charging { color: var(--amber); text-shadow: 0 0 30px var(--amber); }
+/* inline-block не наследует background-clip:text от h1 — без своего фона буквы «БР» были невидимы */
+#easter-br { cursor:pointer; position:relative; display:inline-block; background:inherit; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+#easter-br.charging { color: var(--amber); -webkit-text-fill-color: var(--amber); text-shadow: 0 0 30px var(--amber); }
 #easter-progress { position:absolute; bottom:-8px; left:0; height:2px; width:0%; background: linear-gradient(90deg, var(--amber), #ffe080); box-shadow: 0 0 12px var(--amber); transition: width 0.15s linear; }
 #easter-hint { position:fixed; bottom: 20px; left:50%; transform: translateX(-50%); color: var(--amber); font-size: 12px; letter-spacing: 4px; z-index: 300; opacity:0; transition: opacity 0.4s; pointer-events:none; text-shadow: 0 0 14px var(--amber); font-family:'Orbitron', sans-serif; font-weight:700; }
 #easter-hint.show { opacity:1; }
