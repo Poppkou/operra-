@@ -358,8 +358,9 @@ body.pc-mode #pc-hints { display:block; }
 /* ============================================================
    END SCREEN
    ============================================================ */
-#end-screen { position:fixed; inset:0; z-index:100; background:radial-gradient(circle at 50% 30%, rgba(20,30,50,0.98), rgba(5,8,15,0.99)); display:flex; flex-direction:column; justify-content:center; align-items:center; padding:14px; }
-#end-screen h1 { font-size:24px; margin-bottom:10px; letter-spacing:8px; text-align:center; font-family:'Orbitron', sans-serif; font-weight:900; }
+#end-screen, #revive-screen { position:fixed; inset:0; z-index:100; background:radial-gradient(circle at 50% 30%, rgba(20,30,50,0.98), rgba(5,8,15,0.99)); display:flex; flex-direction:column; justify-content:center; align-items:center; padding:14px; }
+#end-screen h1, #revive-screen h1 { font-size:24px; margin-bottom:10px; letter-spacing:8px; text-align:center; font-family:'Orbitron', sans-serif; font-weight:900; }
+#revive-screen p { font-size:12px; color:var(--text-dim); letter-spacing:3px; text-align:center; margin-bottom:16px; }
 #end-sub { font-size:12px; margin-bottom:12px; color:var(--text-dim); letter-spacing:3px; text-align:center; }
 #end-stats { color:var(--text-dim); font-size:14px; margin:14px; text-align:center; background:linear-gradient(180deg, rgba(15,21,32,0.9), rgba(11,16,24,0.9)); border:1px solid var(--border); border-radius:8px; padding:18px 26px; min-width:300px; }
 .stat-row { display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid rgba(40,60,90,0.3); font-size:13px; }

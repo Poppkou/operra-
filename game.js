@@ -567,6 +567,7 @@ function startTutorialMode() {
   document.getElementById('mission').textContent = '🎓 ОБУЧЕНИЕ';
   document.getElementById('objective').textContent = 'Выполняй подсказки';
   buildTutorialMap();
+  Ads.gameplay(true);
   showTutorialHint();
   log('★ РЕЖИМ ОБУЧЕНИЯ', 'good');
   log('Выполняй подсказки по центру', 'warn');
@@ -862,6 +863,8 @@ let timeScale = 1;
 let gameOverFlag = false;
 let commandMenuOpen = false;
 let paused = false;
+let platformPaused = false;   // пауза от площадки (реклама, системные события); не путать с паузным меню
+let reviveUsed = false, reviveOffered = false, reviveOfferedThisDeath = false, pendingDeath = null;
 let currentTheme = 'industrial';
 
 function angleDiff(a, b) {
@@ -1701,6 +1704,8 @@ const MISSION_BUILDERS = {
 
 function buildMission(missionId) {
   clearWorld();
+  reviveUsed = false; reviveOffered = false; reviveOfferedThisDeath = false;
+  document.getElementById('revive-screen').style.display = 'none';
   player.hp = player.maxHp;
   player.alive = true;
   player.reloading = false;
@@ -1723,6 +1728,7 @@ function buildMission(missionId) {
   spawnSquadSafely();
   updateHUD();
   updateWeaponSelector();
+  Ads.gameplay(true);
 }
 function buildMissionForGuest(missionId) {
   clearWorld();
@@ -3418,7 +3424,7 @@ function animate() {
   const inMenu = document.getElementById('start-screen').style.display !== 'none' ||
                  document.getElementById('end-screen').style.display === 'flex' ||
                  document.getElementById('mp-lobby').classList.contains('active');
-  if (!inMenu && player.alive && !gameOverFlag && !paused) {
+  if (!inMenu && player.alive && !gameOverFlag && !paused && !platformPaused) {
     if (mpMode === 'guest') {
       updatePlayer(dt);
       updateMpRemotePlayerOnGuest(dt);
@@ -3711,15 +3717,53 @@ function updateBullets(dt) {
 }
 
 // ============================================================
+//  «ВТОРОЙ ШАНС» — продолжить бой за рекламу, один раз за миссию
+// ============================================================
+function canOfferRevive() {
+  return Ads.canShowRewarded() && !reviveUsed && !tutorialMode &&
+         mpMode === 'single' && currentMission !== null && currentMission.type !== 'tutorial';
+}
+function offerRevive(reason, customTitle) {
+  reviveOffered = true;
+  reviveOfferedThisDeath = true;   // при этой смерти межэкранную рекламу не показываем
+  pendingDeath = { reason, customTitle };
+  player.firing = false;
+  Ads.gameplay(false);
+  document.getElementById('revive-screen').style.display = 'flex';
+}
+function watchReviveAd() {
+  if (!reviveOffered || Ads.busy) return;
+  Ads.showRewarded(earned => resolveRevive(earned));
+}
+function resolveRevive(revived) {
+  if (!reviveOffered) return;
+  reviveOffered = false;
+  reviveUsed = true;               // один шанс за миссию; ставится и при отказе, иначе будет цикл
+  document.getElementById('revive-screen').style.display = 'none';
+  if (revived) {
+    reviveOfferedThisDeath = false;
+    player.alive = true;
+    player.hp = 50;
+    Ads.gameplay(true);
+  } else {
+    gameOver(false, pendingDeath.reason, pendingDeath.customTitle);
+  }
+}
+
+// ============================================================
 //  GAME OVER — надёжное сохранение
 // ============================================================
 function gameOver(success, reason, customTitle) {
-  if (gameOverFlag) return;
+  if (gameOverFlag || reviveOffered) return;
+  if (!success && canOfferRevive()) { offerRevive(reason, customTitle); return; }
   // Сохраняем id ДО изменения состояния
   const savedMissionId = currentMission ? currentMission.id : null;
   const savedMissionType = currentMission ? currentMission.type : null;
+  const skipInterstitial = reviveOfferedThisDeath;
+  reviveOfferedThisDeath = false;
 
   gameOverFlag = true; timeScale = 1; player.firing = false;
+  Ads.gameplay(false);
   airMode = false; scheduledEvent = null; pendingAirstrike = null;
   tutorialMode = false;
   hideTutorialHint();
@@ -3762,7 +3806,10 @@ function gameOver(success, reason, customTitle) {
     <div class="stat-row"><span class="stat-lbl">💢 Урон получен</span><span class="stat-val">${Math.floor(stats.damageTaken)}</span></div>
     ${waveMode ? `<div class="stat-row"><span class="stat-lbl">🌊 Волна</span><span class="stat-val">${waveNumber}</span></div>` : ''}
   `;
-  endScreen.style.display = 'flex';
+  // Межэкранная реклама — между боем и экраном итога (не в обучении и не в коопе)
+  const showEnd = () => { endScreen.style.display = 'flex'; };
+  if (savedMissionType !== 'tutorial' && mpMode === 'single' && !skipInterstitial) Ads.showInterstitial(showEnd);
+  else showEnd();
 }
 
 // ============================================================
@@ -3852,8 +3899,9 @@ function toggleSettingsPanel(open) {
 }
 
 function togglePause() {
-  if (gameOverFlag || currentMission === null || airMode) return;
+  if (gameOverFlag || currentMission === null || airMode || platformPaused || reviveOffered) return;
   paused = !paused;
+  Ads.gameplay(!paused);
   document.getElementById('pause-menu').classList.toggle('active', paused);
   if (paused) {
     player.firing = false;
@@ -3882,6 +3930,8 @@ const UI_CLICK_ACTIONS = {
   },
   'legend-close':        () => closeLegend(),
   'btn-end-menu':        () => toMenu(),
+  'btn-revive-ad':       () => watchReviveAd(),
+  'btn-revive-skip':     () => resolveRevive(false),
   'btn-settings':        () => toggleSettingsPanel(true),
   'btn-settings-back':   () => toggleSettingsPanel(false),
 };
@@ -3941,6 +3991,9 @@ window.diagUI = function () {
 //  TO MENU — обновляем прогресс при возврате
 // ============================================================
 function toMenu() {
+  Ads.gameplay(false);
+  reviveOffered = false; reviveOfferedThisDeath = false;
+  document.getElementById('revive-screen').style.display = 'none';
   currentMission = null; paused = false; gameOverFlag = false; timeScale = 1; commandMenuOpen = false;
   waveMode = false; airMode = false; airBombs = []; scheduledEvent = null; pendingAirstrike = null;
   tutorialMode = false;
@@ -3964,6 +4017,16 @@ function initGame() {
   bindUI();
   applySettings(loadSettings());
   initMissionSelect();
+  Ads.setPauseHandler(on => {
+    platformPaused = on;
+    if (!audioCtx) return;
+    try {
+      if (on) audioCtx.suspend();
+      else if (!paused) audioCtx.resume();
+    } catch (e) {}
+  });
+  Ads.init();          // асинхронно: SDK площадки, если есть
+  Ads.gameReady();
   animate();
   console.log('[INIT] БРИГАДА — Тактический HUD v2 готова к бою');
 }
