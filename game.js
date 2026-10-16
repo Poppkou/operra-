@@ -339,9 +339,41 @@ function playBombWhistle() {
 // ============================================================
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d', { alpha: false });
-function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
+// Canvas рисуется в логических CSS-пикселях (VW×VH), а буфер — с учётом плотности экрана.
+// renderScale стартует с devicePixelRatio (не выше 2) и сам снижается до 1, если устройство не тянет.
+let VW = innerWidth, VH = innerHeight;
+const DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+let renderScale = isMobile ? Math.min(DPR, 1.5) : DPR;
+let safeLeft = 0;
+let vignetteGrad = null;
+let needsRender = true;
+const safeProbe = document.createElement('div');
+safeProbe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;padding-left:env(safe-area-inset-left);';
+document.body.appendChild(safeProbe);
+function resize() {
+  VW = innerWidth; VH = innerHeight;
+  canvas.width = Math.round(VW * renderScale); canvas.height = Math.round(VH * renderScale);
+  canvas.style.width = VW + 'px'; canvas.style.height = VH + 'px';
+  safeLeft = parseFloat(getComputedStyle(safeProbe).paddingLeft) || 0;
+  vignetteGrad = null;
+  needsRender = true;
+}
 resize();
 window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 250));
+
+// Адаптивное качество: если кадр стабильно дольше ~24 мс, уменьшаем разрешение буфера.
+const perf = { ema: 16.7, samples: 0, lastDrop: 0 };
+function trackFramePerf(frameMs) {
+  perf.ema += (frameMs - perf.ema) * 0.05;
+  perf.samples++;
+  const now = performance.now();
+  if (perf.samples > 120 && perf.ema > 24 && renderScale > 1 && now - perf.lastDrop > 3000) {
+    renderScale = Math.max(1, Math.round((renderScale - 0.5) * 2) / 2);
+    perf.lastDrop = now; perf.samples = 0; perf.ema = 16.7;
+    resize();
+  }
+}
 
 const UNIT = 48;
 const WORLD_LIMIT = 4000;
@@ -1804,7 +1836,7 @@ function updateFireCharge() {
   if (!fireJoy.charged) el.style.setProperty('--charge', (progress * 100) + '%');
   player.firing = fireJoy.charged && fireJoy.mag >= FIRE_THRESHOLD;
 }
-canvas.addEventListener('mousemove', e => { if (player.firing || fireJoy.active || airMode) return; const dx = e.clientX - canvas.width/2; const dy = e.clientY - canvas.height/2; if (Math.hypot(dx, dy) > 15) player.angle = Math.atan2(dy, dx); });
+canvas.addEventListener('mousemove', e => { if (player.firing || fireJoy.active || airMode) return; const dx = e.clientX - VW/2; const dy = e.clientY - VH/2; if (Math.hypot(dx, dy) > 15) player.angle = Math.atan2(dy, dx); });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('mousedown', e => { if (e.button === 0 && !paused && !gameOverFlag && !airMode) player.firing = true; });
 window.addEventListener('mouseup', e => { if (e.button === 0 && !fireJoy.active) player.firing = false; });
@@ -2803,28 +2835,28 @@ function renderFloor(camX, camY) {
     hotel:      { bg:'#22201e', grid:'rgba(120,100,90,0.14)',  accent:'rgba(150,110,90,0.10)' },
   };
   const t = themes[currentTheme] || themes.industrial;
-  ctx.fillStyle = t.bg; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = t.bg; ctx.fillRect(0, 0, VW, VH);
   const g = UNIT;
-  const cx = canvas.width/2, cy = canvas.height/2;
+  const cx = VW/2, cy = VH/2;
   const startI = Math.floor((camX - cx)/g) - 1;
   const startJ = Math.floor((camY - cy)/g) - 1;
-  const endI = startI + Math.ceil(canvas.width/g) + 3;
-  const endJ = startJ + Math.ceil(canvas.height/g) + 3;
+  const endI = startI + Math.ceil(VW/g) + 3;
+  const endJ = startJ + Math.ceil(VH/g) + 3;
   ctx.strokeStyle = t.grid; ctx.lineWidth = 1;
   ctx.beginPath();
-  for (let i = startI; i <= endI; i++) { const sx = i*g - camX + cx; ctx.moveTo(sx, 0); ctx.lineTo(sx, canvas.height); }
-  for (let j = startJ; j <= endJ; j++) { const sy = j*g - camY + cy; ctx.moveTo(0, sy); ctx.lineTo(canvas.width, sy); }
+  for (let i = startI; i <= endI; i++) { const sx = i*g - camX + cx; ctx.moveTo(sx, 0); ctx.lineTo(sx, VH); }
+  for (let j = startJ; j <= endJ; j++) { const sy = j*g - camY + cy; ctx.moveTo(0, sy); ctx.lineTo(VW, sy); }
   ctx.stroke();
   ctx.strokeStyle = t.accent; ctx.lineWidth = 1.5;
   ctx.beginPath();
-  for (let i = startI; i <= endI; i += 4) { const sx = i*g - camX + cx; ctx.moveTo(sx, 0); ctx.lineTo(sx, canvas.height); }
-  for (let j = startJ; j <= endJ; j += 4) { const sy = j*g - camY + cy; ctx.moveTo(0, sy); ctx.lineTo(canvas.width, sy); }
+  for (let i = startI; i <= endI; i += 4) { const sx = i*g - camX + cx; ctx.moveTo(sx, 0); ctx.lineTo(sx, VH); }
+  for (let j = startJ; j <= endJ; j += 4) { const sy = j*g - camY + cy; ctx.moveTo(0, sy); ctx.lineTo(VW, sy); }
   ctx.stroke();
 }
 function drawWall(w, camX, camY) {
-  const cx = canvas.width/2, cy = canvas.height/2;
+  const cx = VW/2, cy = VH/2;
   const sx = w.x - camX + cx, sy = w.y - camY + cy;
-  if (sx + w.w < -20 || sx > canvas.width + 20 || sy + w.h < -20 || sy > canvas.height + 20) return;
+  if (sx + w.w < -20 || sx > VW + 20 || sy + w.h < -20 || sy > VH + 20) return;
   ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(sx + 4, sy + 4, w.w, w.h);
   ctx.fillStyle = MIL.wall; ctx.fillRect(sx, sy, w.w, w.h);
   ctx.fillStyle = 'rgba(0,0,0,0.15)';
@@ -2837,9 +2869,9 @@ function drawWall(w, camX, camY) {
 }
 function drawDestructible(d, camX, camY) {
   if (d.state >= 2) return;
-  const cx = canvas.width/2, cy = canvas.height/2;
+  const cx = VW/2, cy = VH/2;
   const sx = d.x - camX + cx, sy = d.y - camY + cy;
-  if (sx + d.w < -20 || sx > canvas.width + 20 || sy + d.h < -20 || sy > canvas.height + 20) return;
+  if (sx + d.w < -20 || sx > VW + 20 || sy + d.h < -20 || sy > VH + 20) return;
   ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(sx + 4, sy + 4, d.w, d.h);
   ctx.fillStyle = d.state === 0 ? MIL.destruct : '#5a4a3a'; ctx.fillRect(sx, sy, d.w, d.h);
   ctx.fillStyle = 'rgba(0,0,0,0.2)';
@@ -2889,9 +2921,9 @@ function mulberry32(a) {
   };
 }
 function drawObstacle(o, camX, camY) {
-  const cx = canvas.width/2, cy = canvas.height/2;
+  const cx = VW/2, cy = VH/2;
   const sx = o.x - camX + cx, sy = o.y - camY + cy;
-  if (sx + o.w < -20 || sx > canvas.width + 20 || sy + o.h < -20 || sy > canvas.height + 20) return;
+  if (sx + o.w < -20 || sx > VW + 20 || sy + o.h < -20 || sy > VH + 20) return;
   ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(sx + 3, sy + 3, o.w, o.h);
   ctx.fillStyle = '#3a4048'; ctx.fillRect(sx, sy, o.w, o.h);
   ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1; ctx.strokeRect(sx + 2, sy + 2, o.w - 4, o.h - 4);
@@ -2900,9 +2932,9 @@ function drawObstacle(o, camX, camY) {
 }
 function drawFurniture(f, camX, camY) {
   if (f.destroyed) return;
-  const cx = canvas.width/2, cy = canvas.height/2;
+  const cx = VW/2, cy = VH/2;
   const sx = f.x - camX + cx, sy = f.y - camY + cy;
-  if (sx + f.w < -30 || sx > canvas.width + 30 || sy + f.h < -30 || sy > canvas.height + 30) return;
+  if (sx + f.w < -30 || sx > VW + 30 || sy + f.h < -30 || sy > VH + 30) return;
   const hpRatio = f.hp / f.maxHp;
   const damaged = hpRatio < 0.99;
   ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(sx + 2, sy + 3, f.w, f.h);
@@ -2965,9 +2997,9 @@ function drawPerson(sx, sy, radius, angle, bodyColor, outlineColor, skinColor, i
   ctx.lineCap = 'butt';
 }
 function drawEntity(e, camX, camY, bodyColor, outlineColor, skinColor, isPlayer) {
-  const cx = canvas.width/2, cy = canvas.height/2;
+  const cx = VW/2, cy = VH/2;
   const sx = e.x - camX + cx, sy = e.y - camY + cy;
-  if (sx < -50 || sx > canvas.width + 50 || sy < -50 || sy > canvas.height + 50) return;
+  if (sx < -50 || sx > VW + 50 || sy < -50 || sy > VH + 50) return;
   if (e.burning > 0) {
     const t = gameTime * 0.01;
     for (let i = 0; i < 4; i++) {
@@ -2997,9 +3029,9 @@ function drawEntity(e, camX, camY, bodyColor, outlineColor, skinColor, isPlayer)
   }
 }
 function drawMarker(x, y, camX, camY, color, label) {
-  const cx = canvas.width/2, cy = canvas.height/2;
+  const cx = VW/2, cy = VH/2;
   const sx = x - camX + cx, sy = y - camY + cy;
-  if (sx < -80 || sx > canvas.width + 80 || sy < -80 || sy > canvas.height + 80) return;
+  if (sx < -80 || sx > VW + 80 || sy < -80 || sy > VH + 80) return;
   const pulse = 1 + Math.sin(gameTime * 0.005) * 0.15;
   ctx.fillStyle = color + '30';
   ctx.beginPath(); ctx.arc(sx, sy, 26*pulse, 0, Math.PI*2); ctx.fill();
@@ -3009,7 +3041,7 @@ function drawMarker(x, y, camX, camY, color, label) {
   ctx.fillText(label, sx, sy - 30);
 }
 function drawMolotov(m, camX, camY) {
-  const cx = canvas.width/2, cy = canvas.height/2;
+  const cx = VW/2, cy = VH/2;
   const sx = m.x - camX + cx, sy = m.y - camY + cy;
   const screenY = sy - m.h;
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
@@ -3029,9 +3061,9 @@ function drawMolotov(m, camX, camY) {
   ctx.beginPath(); ctx.arc(sx, screenY - 5, 4, 0, Math.PI*2); ctx.fill();
 }
 function drawFire(f, camX, camY) {
-  const cx = canvas.width/2, cy = canvas.height/2;
+  const cx = VW/2, cy = VH/2;
   const sx = f.x - camX + cx, sy = f.y - camY + cy;
-  if (sx < -200 || sx > canvas.width + 200 || sy < -200 || sy > canvas.height + 200) return;
+  if (sx < -200 || sx > VW + 200 || sy < -200 || sy > VH + 200) return;
   const age = (gameTime - f.born) / f.duration;
   const intensity = age < 0.85 ? 1 : Math.max(0, 1 - (age - 0.85) / 0.15);
   const t = gameTime * 0.008;
@@ -3054,9 +3086,9 @@ function drawFire(f, camX, camY) {
   }
 }
 function drawMedkit(m, camX, camY) {
-  const cx = canvas.width/2, cy = canvas.height/2;
+  const cx = VW/2, cy = VH/2;
   const sx = m.x - camX + cx, sy = m.y - camY + cy;
-  if (sx < -40 || sx > canvas.width + 40 || sy < -40 || sy > canvas.height + 40) return;
+  if (sx < -40 || sx > VW + 40 || sy < -40 || sy > VH + 40) return;
   const bob = Math.sin(gameTime * 0.005) * 2;
   ctx.fillStyle = 'rgba(100, 200, 120, 0.2)';
   ctx.beginPath(); ctx.arc(sx, sy + bob, 18, 0, Math.PI*2); ctx.fill();
@@ -3067,7 +3099,7 @@ function drawMedkit(m, camX, camY) {
   ctx.fillRect(sx - 8, sy - 2 + bob, 16, 4);
 }
 function drawHazards(camX, camY) {
-  const cx = canvas.width/2, cy = canvas.height/2;
+  const cx = VW/2, cy = VH/2;
   for (const h of hazards) {
     if (h.type === 'marker') {
       const sx = h.x - camX + cx, sy = h.y - camY + cy;
@@ -3104,16 +3136,16 @@ function drawHazards(camX, camY) {
 function renderAirMode() {
   const wb = worldBounds;
   const viewW = wb.maxX - wb.minX, viewH = wb.maxY - wb.minY;
-  const scale = Math.min(canvas.width / viewW, canvas.height / viewH);
-  const offX = (canvas.width - viewW * scale) / 2 - wb.minX * scale;
-  const offY = (canvas.height - viewH * scale) / 2 - wb.minY * scale;
+  const scale = Math.min(VW / viewW, VH / viewH);
+  const offX = (VW - viewW * scale) / 2 - wb.minX * scale;
+  const offY = (VH - viewH * scale) / 2 - wb.minY * scale;
   const toScreen = (x, y) => ({ x: x * scale + offX, y: y * scale + offY });
-  ctx.fillStyle = '#0a0c10'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0a0c10'; ctx.fillRect(0, 0, VW, VH);
   ctx.strokeStyle = 'rgba(80,100,120,0.15)'; ctx.lineWidth = 1;
   ctx.beginPath();
   const gs = 240;
-  for (let x = Math.floor(wb.minX/gs)*gs; x < wb.maxX; x += gs) { const p = toScreen(x, 0); ctx.moveTo(p.x, 0); ctx.lineTo(p.x, canvas.height); }
-  for (let y = Math.floor(wb.minY/gs)*gs; y < wb.maxY; y += gs) { const p = toScreen(0, y); ctx.moveTo(0, p.y); ctx.lineTo(canvas.width, p.y); }
+  for (let x = Math.floor(wb.minX/gs)*gs; x < wb.maxX; x += gs) { const p = toScreen(x, 0); ctx.moveTo(p.x, 0); ctx.lineTo(p.x, VH); }
+  for (let y = Math.floor(wb.minY/gs)*gs; y < wb.maxY; y += gs) { const p = toScreen(0, y); ctx.moveTo(0, p.y); ctx.lineTo(VW, p.y); }
   ctx.stroke();
   ctx.fillStyle = 'rgba(90,90,100,0.6)';
   for (const w of WORLD.walls) { const p = toScreen(w.x, w.y); ctx.fillRect(p.x, p.y, Math.max(w.w * scale, 1), Math.max(w.h * scale, 1)); }
@@ -3165,9 +3197,11 @@ function renderAirMode() {
   ctx.beginPath(); ctx.arc(tp.x, tp.y, 6, 0, Math.PI*2); ctx.stroke();
 }
 function render() {
+  ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
+  needsRender = false;
   if (airMode) { renderAirMode(); return; }
   const camX = player.x, camY = player.y;
-  const cx = canvas.width/2, cy = canvas.height/2;
+  const cx = VW/2, cy = VH/2;
   renderFloor(camX, camY);
   for (const bd of bloodDecals) {
     const age = (gameTime - bd.born) / 22000;
@@ -3226,28 +3260,30 @@ function render() {
     else if (f.type === 'blood') { const k = f.life / f.maxLife; ctx.fillStyle = `rgba(140, 20, 20, ${k})`; ctx.beginPath(); ctx.arc(sx, sy, 3, 0, Math.PI*2); ctx.fill(); }
     else if (f.type === 'fragment') { const k = Math.min(1, f.life / f.maxLife); ctx.save(); ctx.translate(sx, sy); ctx.rotate(f.rot); ctx.globalAlpha = k; ctx.fillStyle = f.color; ctx.fillRect(-f.size/2, -f.size/2, f.size, f.size); ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1; ctx.strokeRect(-f.size/2, -f.size/2, f.size, f.size); ctx.restore(); }
   }
-  const vg = ctx.createRadialGradient(cx, cy, Math.min(canvas.width, canvas.height) * 0.4, cx, cy, Math.max(canvas.width, canvas.height) * 0.75);
-  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.55)');
-  ctx.fillStyle = vg; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  if (!vignetteGrad) {
+    vignetteGrad = ctx.createRadialGradient(cx, cy, Math.min(VW, VH) * 0.4, cx, cy, Math.max(VW, VH) * 0.75);
+    vignetteGrad.addColorStop(0, 'rgba(0,0,0,0)'); vignetteGrad.addColorStop(1, 'rgba(0,0,0,0.55)');
+  }
+  ctx.fillStyle = vignetteGrad; ctx.fillRect(0, 0, VW, VH);
   const darkHaz = hazards.find(h => h.type === 'darkness');
   if (darkHaz) {
     const age = gameTime - darkHaz.born;
     const fade = Math.min(1, age / 500) * Math.max(0, 1 - (age - (darkHaz.duration - 1500)) / 1500);
-    ctx.fillStyle = `rgba(0,0,10,${0.6 * fade})`; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = `rgba(0,0,10,${0.6 * fade})`; ctx.fillRect(0, 0, VW, VH);
   }
   const fogHaz = hazards.find(h => h.type === 'fog');
   if (fogHaz) {
     const age = gameTime - fogHaz.born;
     const fade = Math.min(1, age / 800) * Math.max(0, 1 - (age - (fogHaz.duration - 2000)) / 2000);
-    ctx.fillStyle = `rgba(140,150,160,${0.4 * fade})`; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = `rgba(140,150,160,${0.4 * fade})`; ctx.fillRect(0, 0, VW, VH);
   }
-  if (player.burning > 0) { ctx.fillStyle = `rgba(255, 100, 20, ${0.12 + Math.random() * 0.06})`; ctx.fillRect(0, 0, canvas.width, canvas.height); }
-  if (timeScale < 1 && !paused && !airMode) { ctx.fillStyle = `rgba(30, 50, 90, ${0.15 * (1 - timeScale)})`; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+  if (player.burning > 0) { ctx.fillStyle = `rgba(255, 100, 20, ${0.12 + Math.random() * 0.06})`; ctx.fillRect(0, 0, VW, VH); }
+  if (timeScale < 1 && !paused && !airMode) { ctx.fillStyle = `rgba(30, 50, 90, ${0.15 * (1 - timeScale)})`; ctx.fillRect(0, 0, VW, VH); }
   drawMinimap();
   if (waveMode) drawWaveHUD();
 }
 function drawWaveHUD() {
-  const cx = canvas.width/2;
+  const cx = VW/2;
   ctx.fillStyle = 'rgba(15,18,20,0.9)'; ctx.fillRect(cx - 100, 8, 200, 30);
   ctx.strokeStyle = '#c8a850'; ctx.lineWidth = 2; ctx.strokeRect(cx - 100, 8, 200, 30);
   ctx.fillStyle = '#c8a850'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center';
@@ -3406,19 +3442,27 @@ function startMission(m) {
   }
 }
 
+const UI_EL = {
+  start: document.getElementById('start-screen'),
+  end: document.getElementById('end-screen'),
+  lobby: document.getElementById('mp-lobby'),
+};
 let lastTime = performance.now();
 function animate() {
   requestAnimationFrame(animate);
   const now = performance.now();
   const realDt = Math.min((now - lastTime)/1000, 0.05);
   lastTime = now;
-  if (airMode) { updateAirMode(realDt); render(); return; }
+  if (airMode) { updateAirMode(realDt); render(); trackFramePerf(realDt * 1000); return; }
   const dt = realDt * timeScale;
   gameTime += dt * 1000;
-  const inMenu = document.getElementById('start-screen').style.display !== 'none' ||
-                 document.getElementById('end-screen').style.display === 'flex' ||
-                 document.getElementById('mp-lobby').classList.contains('active');
-  if (!inMenu && player.alive && !gameOverFlag && !paused) {
+  const inMenu = UI_EL.start.style.display !== 'none' ||
+                 UI_EL.end.style.display === 'flex' ||
+                 UI_EL.lobby.classList.contains('active');
+  // Под меню, лобби и паузой сцена не меняется: не перерисовываем её 60 раз в секунду (экономия батареи)
+  if (inMenu || paused) { if (needsRender) render(); return; }
+  trackFramePerf(realDt * 1000);
+  if (player.alive && !gameOverFlag) {
     if (mpMode === 'guest') {
       updatePlayer(dt);
       updateMpRemotePlayerOnGuest(dt);
@@ -3449,7 +3493,7 @@ document.addEventListener('gesturestart', e => e.preventDefault());
 //  TUTORIAL — рисует табличку подсказок вместо миникарты
 // ============================================================
 function drawTutorialHintsPanel() {
-  const x = 10, y = 20, w = 230, h = 156;
+  const x = 10 + safeLeft, y = 20, w = 230, h = 156;
   ctx.fillStyle = 'rgba(10,12,16,0.93)';
   ctx.fillRect(x, y, w, h);
   ctx.strokeStyle = '#c8a850';
@@ -3507,7 +3551,7 @@ function drawMinimap() {
 
   // Обычная миникарта
   // На низких экранах (телефон в landscape) миникарта налезала на панель HP
-  const mmSize = Math.round(Math.min(136, canvas.height * 0.26)), mmX = 10, mmY = 20;
+  const mmSize = Math.round(Math.min(136, VH * 0.26)), mmX = 10 + safeLeft, mmY = 20;
   ctx.fillStyle = 'rgba(10, 12, 16, 0.9)';
   ctx.fillRect(mmX, mmY, mmSize, mmSize);
   ctx.strokeStyle = '#6a6a72'; ctx.lineWidth = 2;
@@ -3866,6 +3910,18 @@ function togglePause() {
     toggleSettingsPanel(false);
   }
 }
+
+// Свернули приложение / пришёл звонок — ставим бой на паузу, при возврате будим звук
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    const inMenu = UI_EL.start.style.display !== 'none' || UI_EL.end.style.display === 'flex';
+    if (!paused && !inMenu) togglePause();
+    moveInput.x = 0; moveInput.y = 0; moveInput.active = false;
+    player.firing = false;
+  } else if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(() => {});
+  }
+});
 
 // ============================================================
 //  ОБРАБОТЧИКИ UI — ФИКС КНОПОК (делегирование, не зависит от DOM-ready)
