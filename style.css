@@ -434,3 +434,81 @@ body.pc-mode #pc-hints { display:block; }
   .mc-compact { flex:0 0 92px; padding:10px 6px; }
   .mc-num { font-size:24px; }
              }
+
+/* ============================================================
+   MOBILE — производительность и вёрстка под телефоны
+   ============================================================ */
+/* backdrop-filter поверх canvas, который перерисовывается каждый кадр, заставляет GPU
+   заново размывать каждую панель 60 раз в секунду. На сенсорных устройствах отключаем
+   размытие и делаем фон панелей чуть плотнее — визуально почти то же, а кадр дешевле. */
+body:not(.pc-mode) * { backdrop-filter:none !important; -webkit-backdrop-filter:none !important; }
+body:not(.pc-mode) .tb-center,
+body:not(.pc-mode) #enemy-panel,
+body:not(.pc-mode) #btn-pause,
+body:not(.pc-mode) #hp-panel,
+body:not(.pc-mode) #p2-panel,
+body:not(.pc-mode) .wslot:not(.active),
+body:not(.pc-mode) .act-btn { background:rgba(11,16,24,0.9); }
+body:not(.pc-mode) #log { background:rgba(11,16,24,0.85); }
+
+/* Горизонтальная прокрутка карточек миссий (глобальный touch-action:none её блокировал) */
+.group-cards, .group-cards * { touch-action:pan-x pan-y; }
+#start-screen { padding-left:max(14px, env(safe-area-inset-left)); padding-right:max(14px, env(safe-area-inset-right)); padding-bottom:max(14px, env(safe-area-inset-bottom)); }
+
+/* Вырез и закруглённые углы экрана: управление не уходит под них */
+#joystick-move { left:calc(18px + env(safe-area-inset-left)); bottom:calc(18px + env(safe-area-inset-bottom)); }
+#fire-joystick { right:calc(20px + env(safe-area-inset-right)); bottom:calc(20px + env(safe-area-inset-bottom)); }
+#btn-weapon   { right:calc(58px + env(safe-area-inset-right)); }
+#btn-reload   { right:calc(130px + env(safe-area-inset-right)); }
+#btn-grenade  { right:calc(172px + env(safe-area-inset-right)); }
+#btn-commands { right:calc(172px + env(safe-area-inset-right)); }
+#hp-panel { left:calc(18px + env(safe-area-inset-left)); bottom:calc(var(--move-size, 120px) + 38px + env(safe-area-inset-bottom)); }
+#p2-panel { left:calc(210px + env(safe-area-inset-left)); bottom:calc(var(--move-size, 120px) + 38px + env(safe-area-inset-bottom)); }
+#weapon-bar { bottom:calc(14px + env(safe-area-inset-bottom)); }
+#log { right:calc(10px + env(safe-area-inset-right)); }
+#air-move-joy { left:calc(30px + env(safe-area-inset-left)); bottom:calc(30px + env(safe-area-inset-bottom)); }
+body.pc-mode #hp-panel { bottom:20px; left:20px; }
+body.pc-mode #weapon-bar { bottom:20px; }
+
+/* Телефон в landscape: высота 320–480 px */
+@media (max-height: 480px) {
+  /* Меню: компактная шапка, чтобы список миссий получил место */
+  #start-screen { gap:8px; padding-top:max(8px, env(safe-area-inset-top)); }
+  .menu-header { margin-top:0; }
+  .menu-brand, .menu-slogan { display:none; }
+  .menu-header h1 { font-size:26px; letter-spacing:10px; padding-left:10px; }
+  .menu-progress { margin-top:4px; padding:3px 12px; font-size:10px; }
+  .menu-actions { gap:8px; }
+  .menu-action-btn { flex-direction:row; gap:8px; min-width:0; padding:8px 14px; }
+  .menu-action-btn .ma-icon { font-size:18px; margin-bottom:0; }
+  .menu-action-btn .ma-title { font-size:10px; letter-spacing:2px; }
+  .menu-action-btn .ma-sub { display:none; }
+  .mission-group { padding:8px 10px; }
+  .group-header { margin-bottom:6px; font-size:11px; }
+  .mc-compact { flex:0 0 92px; padding:8px 6px; }
+  .mc-num { font-size:22px; }
+  .menu-footer { padding:2px; }
+  .menu-footer-btn { padding:6px 14px; }
+
+  /* Бой: лог короче, чтобы не наезжать на кнопки справа */
+  #log { top:54px; width:150px; max-height:50px; font-size:9px; }
+  #weapon-bar { gap:4px; }
+  .wslot { min-width:62px; padding:4px 8px; }
+  .wslot svg { width:40px; height:13px; }
+
+  /* Пауза и меню приказов помещаются по высоте */
+  .pause-box { padding:16px 22px 14px; gap:6px; max-height:calc(100vh - 16px); overflow-y:auto; touch-action:pan-y; }
+  .pause-box * { touch-action:pan-y; }
+  #command-menu { padding:10px; min-width:0; max-height:calc(100vh - 16px); overflow-y:auto; }
+}
+
+/* Совсем низкие экраны (старые Android, 320–360 px): кнопки и панели помельче */
+@media (max-height: 360px) {
+  .act-btn { width:46px; height:46px; font-size:16px; }
+  #btn-weapon  { bottom:150px; }
+  #btn-reload  { bottom:150px; right:calc(118px + env(safe-area-inset-right)); }
+  #btn-grenade { bottom:104px; right:calc(160px + env(safe-area-inset-right)); }
+  #btn-commands{ bottom:50px;  right:calc(160px + env(safe-area-inset-right)); }
+  #log { display:none; }
+  .tb-center { padding:3px 12px 4px; }
+}
